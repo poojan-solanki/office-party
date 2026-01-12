@@ -1,0 +1,82 @@
+# Vite / React / Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+vite.config.*.ts
+vite.config.*.js
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor / OS generated files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Testing
+coverage/
+cypress/downloads/
+cypress/screenshots/
+cypress/videos/
+
+# Dependency directories (optional but sometimes useful)
+jspm_packages/
+web_modules/
+
+# TypeScript / Build artifacts
+*.tsbuildinfo
+*.d.ts.map
+next-env.d.ts
+
+# Vite cache & temp files
+.cache/
+.temp/
+.vite/
+
+# Optional: ignore large generated assets
+public/generated/
+public/sitemap.xml
+public/robots.txt
+
+# Optional: Storybook
+.storybook/cache/
+.storybook/public/
+
+# Optional: Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Optional: if you're using Vitest + snapshots
+**/__snapshots__/
+
+
+#Firebase
+src/firebase.js
