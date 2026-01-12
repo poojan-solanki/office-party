@@ -115,7 +115,7 @@ This project is configured for Firebase Hosting. To deploy:
 
 ## 🤝 Contributing
 
-This is a the fun project. If you have suggestions or improvements, feel free to reach out or contribute!
+This is a fun project. If you have suggestions or improvements, feel free to reach out or contribute!
 
 ---
 
