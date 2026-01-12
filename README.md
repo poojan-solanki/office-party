@@ -24,7 +24,7 @@ Before you begin, ensure you have the following installed:
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repository-url>
+   git clone https://github.com/poojan-solanki/office-party.git
    cd office-party
    ```
 
@@ -112,13 +112,10 @@ This project is configured for Firebase Hosting. To deploy:
    firebase deploy
    ```
 
-## 📄 License
-
-This project is private and not licensed for public use.
 
 ## 🤝 Contributing
 
-This is a personal project. If you have suggestions or improvements, feel free to reach out!
+This is a the fun project. If you have suggestions or improvements, feel free to reach out or contribute!
 
 ---
 
