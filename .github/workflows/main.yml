@@ -28,13 +28,14 @@ jobs:
       - name: Run Sift Service
         env:
           DATABASE_URL: ${{ secrets.SIFT_DATABASE_URL }}
-          LLM_MODEL: "openai/gpt-5.6-luna" # Change to "openai/gpt-4o" if using OpenAI
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_MODEL: "openai/gpt-5.6-luna"
+          LLM_API_KEY: ${{ secrets.SIFT_LLM_API_KEY }}  # ✅ FIXED: Sift reads LLM_API_KEY
         run: |
           docker run -d --name sift-service -p 8000:8000 \
             -e DATABASE_URL="$DATABASE_URL" \
             -e LLM_MODEL="$LLM_MODEL" \
-            -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+            -e LLM_API_KEY="$LLM_API_KEY" \
+            -e OPENAI_API_KEY="$LLM_API_KEY" \
             -e SIFT_GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             sift:local
 
@@ -42,11 +43,12 @@ jobs:
         run: |
           echo "Waiting for Sift service to start..."
           for i in {1..30}; do
-            if curl -s http://localhost:8000/health | grep -q "ok"; then
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || true)
+            if [ "$STATUS" = "200" ]; then
               echo "✅ Sift is healthy and running!"
               exit 0
             fi
-            echo "Waiting... ($i/30)"
+            echo "Waiting... (Status: $STATUS, Try: $i/30)"
             sleep 2
           done
           echo "❌ Sift service failed to start. Container logs:"
@@ -55,7 +57,6 @@ jobs:
 
       - name: Trigger PR Review
         run: |
-          echo "Triggering review for PR #${{ github.event.pull_request.number }}..."
           RESPONSE=$(curl -s -X POST http://localhost:8000/review \
             -H "Content-Type: application/json" \
             -d '{
@@ -66,12 +67,9 @@ jobs:
               "github_token": "${{ secrets.GITHUB_TOKEN }}"
             }')
           echo "Server Response: $RESPONSE"
-          
-          # Allow background review to complete before container teardown
           sleep 45
           docker logs sift-service
 
       - name: Show Logs on Failure
         if: failure()
-        run: |
-          docker logs sift-service
+        run: docker logs sift-service
