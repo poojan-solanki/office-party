@@ -1,35 +1,133 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Music, ThumbsUp, Search, Play, Pause, SkipForward, Volume2, X, Clock, Shield, Users, LogOut, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Music,
+  ThumbsUp,
+  Search,
+  Play,
+  Pause,
+  SkipForward,
+  Volume2,
+  X,
+  Clock,
+  Shield,
+  Users,
+  LogOut,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+  Sparkles,
+  Flame,
+  Radio,
+  Loader2
+} from 'lucide-react';
 import './firebase.js';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
+
+// Helper: Extract YouTube ID cleanly
+function extractYouTubeId(urlOrStr) {
+  if (!urlOrStr) return '';
+  const match = urlOrStr.match(/(?:v=|\/embed\/|\/watch\?v=|\/v\/|youtu\.be\/|\/shorts\/|^)([a-zA-Z0-9_-]{11})/);
+  if (match && match[1]) return match[1];
+  const clean = urlOrStr.split('?')[0].split('&')[0].split('/').pop();
+  return clean || urlOrStr;
+}
+
+// Helper: Format seconds to M:SS
+function formatDuration(seconds) {
+  if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Helper: Create song entry object
+function createSongEntry(song, creatorDeviceId) {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).substring(2, 7);
+  return {
+    id: `song:${ts}_${rand}`,
+    ...song,
+    votes: 1,
+    addedAt: ts,
+    votedBy: creatorDeviceId ? [creatorDeviceId] : []
+  };
+}
+
+// Toast Notification Component
+function Toast({ toast, onClose }) {
+  if (!toast) return null;
+
+  const bgColors = {
+    success: 'bg-emerald-600/90 border-emerald-400/50 text-white',
+    error: 'bg-rose-600/90 border-rose-400/50 text-white',
+    warning: 'bg-amber-600/90 border-amber-400/50 text-white',
+    info: 'bg-purple-600/90 border-purple-400/50 text-white'
+  };
+
+  const icons = {
+    success: <CheckCircle2 className="w-5 h-5 flex-shrink-0" />,
+    error: <AlertCircle className="w-5 h-5 flex-shrink-0" />,
+    warning: <AlertCircle className="w-5 h-5 flex-shrink-0" />,
+    info: <Sparkles className="w-5 h-5 flex-shrink-0" />
+  };
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full transition-all">
+      <div
+        className={`flex items-center justify-between gap-3 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border ${
+          bgColors[toast.type || 'info']
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {icons[toast.type || 'info']}
+          <p className="text-sm font-medium">{toast.message}</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-white/70 hover:text-white transition-colors p-1"
+          aria-label="Close notification"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // Landing Page Component
 function LandingPage({ onSelectMode }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 shadow-2xl text-center">
-          <Music className="w-20 h-20 text-white mx-auto mb-6" />
-          <h1 className="text-5xl font-bold text-white mb-4">Office Party DJ</h1>
-          <p className="text-white/80 text-lg mb-12">Choose how you'd like to join the party</p>
+        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 sm:p-12 shadow-2xl text-center border border-white/20">
+          <div className="relative inline-block mb-6">
+            <div className="absolute inset-0 bg-white/20 rounded-full blur-xl animate-pulse"></div>
+            <Music className="w-20 h-20 text-white relative z-10 mx-auto" />
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-4 tracking-tight">
+            Office Party DJ
+          </h1>
+          <p className="text-white/80 text-base sm:text-lg mb-10 max-w-md mx-auto">
+            Democracy on the AUX. Add your favorite tracks and vote for what plays next!
+          </p>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-6">
             <button
               onClick={() => onSelectMode('admin')}
-              className="bg-gradient-to-br from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-2xl p-8 shadow-xl transform hover:scale-105 transition-all"
+              className="group bg-gradient-to-br from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-2xl p-6 sm:p-8 shadow-xl transform hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 border border-white/20 text-left cursor-pointer"
             >
-              <Shield className="w-16 h-16 mx-auto mb-4" />
+              <Shield className="w-12 h-12 mb-4 group-hover:scale-110 transition-transform" />
               <h2 className="text-2xl font-bold mb-2">DJ Control Panel</h2>
-              <p className="text-white/90 text-sm">Take control of the music</p>
+              <p className="text-white/80 text-sm">Control the player, skip songs & manage the queue</p>
             </button>
 
             <button
               onClick={() => onSelectMode('user')}
-              className="bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-2xl p-8 shadow-xl transform hover:scale-105 transition-all"
+              className="group bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-2xl p-6 sm:p-8 shadow-xl transform hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 border border-white/20 text-left cursor-pointer"
             >
-              <Users className="w-16 h-16 mx-auto mb-4" />
+              <Users className="w-12 h-12 mb-4 group-hover:scale-110 transition-transform" />
               <h2 className="text-2xl font-bold mb-2">Join the Party</h2>
-              <p className="text-white/90 text-sm">Add songs & vote for favorites</p>
+              <p className="text-white/80 text-sm">Search tracks, queue bangers & vote for the next song</p>
             </button>
           </div>
         </div>
@@ -46,36 +144,40 @@ function AdminLogin({ onLogin, onSwitchToUser, onBack }) {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (username === 'poojan_s_' && password === 'p01052004') {
+    const expectedUser = import.meta.env.VITE_ADMIN_USERNAME || 'poojan_s_';
+    const expectedPass = import.meta.env.VITE_ADMIN_PASSWORD || 'p01052004';
+
+    if (username === expectedUser && password === expectedPass) {
+      sessionStorage.setItem('op_admin_authenticated', 'true');
       onLogin();
     } else {
-      setError('Invalid credentials! Try again.');
-      setTimeout(() => setError(''), 3000);
+      setError('Invalid credentials! Please try again.');
+      setTimeout(() => setError(''), 3500);
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 shadow-2xl">
+        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/20">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-all"
+            className="flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-all text-sm font-medium cursor-pointer"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
             Back to menu
           </button>
 
-          <div className="text-center mb-8">
-            <Shield className="w-16 h-16 text-white mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-white mb-2">DJ Control Access</h2>
-            <p className="text-white/70 text-sm">Enter your credentials to control the music</p>
+          <div className="text-center mb-6">
+            <Shield className="w-14 h-14 text-white mx-auto mb-3" />
+            <h2 className="text-3xl font-bold text-white mb-1">DJ Access</h2>
+            <p className="text-white/70 text-sm">Enter credentials to control playback</p>
           </div>
 
-          <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-xl p-4 mb-6">
-            <p className="text-yellow-100 text-sm text-center">
-              ⚠️ <strong>Admin Only Zone</strong><br />
-              Just here to vibe? Click below to join as a guest!
+          <div className="bg-amber-500/20 border border-amber-400/40 rounded-xl p-3.5 mb-6">
+            <p className="text-amber-100 text-xs sm:text-sm text-center">
+              🔒 <strong>DJ Control Panel</strong><br />
+              Just here to vote & listen? Switch to Guest mode below!
             </p>
           </div>
 
@@ -86,7 +188,8 @@ function AdminLogin({ onLogin, onSwitchToUser, onBack }) {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Username"
-                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+                autoComplete="username"
+                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/60 text-sm transition-all"
               />
             </div>
             <div>
@@ -95,37 +198,39 @@ function AdminLogin({ onLogin, onSwitchToUser, onBack }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+                autoComplete="current-password"
+                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/60 text-sm transition-all"
               />
             </div>
             {error && (
-              <p className="text-red-300 text-sm text-center bg-red-500/20 py-2 rounded-lg">{error}</p>
+              <div className="flex items-center gap-2 text-rose-200 text-xs bg-rose-500/30 border border-rose-400/40 p-2.5 rounded-lg">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
             )}
             <button
               type="submit"
-              className="w-full py-3 bg-white text-purple-600 rounded-xl font-bold hover:bg-white/90 transition-all shadow-lg"
+              className="w-full py-3 bg-white text-purple-700 rounded-xl font-bold hover:bg-white/90 active:scale-95 transition-all shadow-lg text-sm cursor-pointer"
             >
-              Access DJ Panel
+              Log In as DJ
             </button>
           </form>
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/30"></div>
+              <div className="w-full border-t border-white/20"></div>
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-transparent text-white/60">OR</span>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-3 bg-white/10 backdrop-blur-md rounded-full text-white/70">OR</span>
             </div>
           </div>
 
           <button
             onClick={onSwitchToUser}
-            className="w-full py-3 bg-blue-500/30 hover:bg-blue-500/40 text-white rounded-xl font-bold transition-all border border-blue-400/50"
+            className="w-full py-3 bg-blue-500/30 hover:bg-blue-500/40 text-white rounded-xl font-semibold transition-all border border-blue-400/40 text-sm flex items-center justify-center gap-2 cursor-pointer"
           >
-            <div className="flex items-center justify-center gap-2">
-              <Users className="w-5 h-5" />
-              Join as Guest Instead
-            </div>
+            <Users className="w-4 h-4" />
+            Join as Guest Instead
           </button>
         </div>
       </div>
@@ -136,7 +241,9 @@ function AdminLogin({ onLogin, onSwitchToUser, onBack }) {
 // Main Music Voter Component
 export default function MusicVoter() {
   const [mode, setMode] = useState(null);
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    return sessionStorage.getItem('op_admin_authenticated') === 'true';
+  });
   const [songs, setSongs] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -146,520 +253,483 @@ export default function MusicVoter() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(70);
+  const [deviceId, setDeviceId] = useState(null);
+  const [toast, setToast] = useState(null);
+
   const playerRef = useRef(null);
   const intervalRef = useRef(null);
+  const deleteSongAndPlayNextRef = useRef(null);
 
-  const pipedInstances = [
-    'https://api.piped.private.coffee',
-    'https://pipedapi.kavin.rocks',
-    'https://api.piped.yt',
-  ];
-  const [currentInstance, setCurrentInstance] = useState(0);
-
-  // Load YouTube iframe API
-  useEffect(() => {
-    const tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-    window.onYouTubeIframeAPIReady = () => {
-      console.log('YouTube API Ready');
-    };
+  const showToast = useCallback((message, type = 'info') => {
+    setToast({ message, type });
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Setup real-time Firebase listener
-  useEffect(() => {
-    loadSongs();
-
-    // Load now playing for users
-    if (mode === 'user') {
-      loadNowPlaying();
+  // Public Piped / Invidious Search Endpoints with Fallback
+  const searchEndpoints = [
+    {
+      url: (q) => `https://pipedapi.leptons.xyz/search?q=${encodeURIComponent(q + ' song audio')}&filter=music_songs`,
+      parse: (data) => (data?.items || []).filter(i => i.url || i.title).slice(0, 8).map(item => ({
+        youtubeId: extractYouTubeId(item.url),
+        title: (item.title || 'Unknown Song').replace(/ \((Official Audio|Official Video|Audio|Music Video|Lyric Video)\)/gi, '').trim(),
+        artist: item.uploaderName || 'Artist',
+        thumbnail: item.thumbnail || (item.thumbnails?.[0]?.url) || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=200&fit=crop',
+        duration: item.duration || 180,
+        durationText: formatDuration(item.duration || 180)
+      }))
+    },
+    {
+      url: (q) => `https://api.piped.privacydev.net/search?q=${encodeURIComponent(q + ' official audio')}&filter=music_songs`,
+      parse: (data) => (data?.items || []).filter(i => i.url || i.title).slice(0, 8).map(item => ({
+        youtubeId: extractYouTubeId(item.url),
+        title: (item.title || 'Unknown Song').replace(/ \((Official Audio|Official Video|Audio|Music Video)\)/gi, '').trim(),
+        artist: item.uploaderName || 'Artist',
+        thumbnail: item.thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=200&fit=crop',
+        duration: item.duration || 180,
+        durationText: formatDuration(item.duration || 180)
+      }))
+    },
+    {
+      url: (q) => `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(q + ' music')}&type=video`,
+      parse: (data) => (Array.isArray(data) ? data : []).slice(0, 8).map(item => ({
+        youtubeId: item.videoId || extractYouTubeId(item.videoThumbnails?.[0]?.url),
+        title: (item.title || 'Unknown Song').replace(/ \((Official Audio|Official Video|Audio)\)/gi, '').trim(),
+        artist: item.author || 'Artist',
+        thumbnail: item.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+        duration: item.lengthSeconds || 180,
+        durationText: formatDuration(item.lengthSeconds || 180)
+      }))
     }
+  ];
 
-    const unsubscribe = window.storage.onUpdate(() => {
-      console.log('🔥 Real-time update detected!');
-      loadSongs();
+  // Initialize YouTube Iframe API
+  useEffect(() => {
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+  }, []);
 
-      // Also reload now playing for users
-      if (mode === 'user') {
-        loadNowPlaying();
+  // Compute Device ID with IP + FingerprintJS and fallback cache
+  const getDeviceId = useCallback(async () => {
+    if (deviceId) return deviceId;
+
+    try {
+      let ip = 'anon';
+
+      // Try ipify with timeout
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const ipRes = await fetch('https://api.ipify.org/?format=json', {
+          cache: 'no-cache',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          if (ipData?.ip) ip = ipData.ip;
+        }
+      } catch {
+        // Backup IP lookup
+        try {
+          const controller2 = new AbortController();
+          const timeoutId2 = setTimeout(() => controller2.abort(), 2500);
+          const ipRes2 = await fetch('https://ipapi.co/json/', {
+            cache: 'no-cache',
+            signal: controller2.signal
+          });
+          clearTimeout(timeoutId2);
+          if (ipRes2.ok) {
+            const ipData2 = await ipRes2.json();
+            if (ipData2?.ip) ip = ipData2.ip;
+          }
+        } catch {
+          ip = 'local';
+        }
       }
+
+      // Generate fingerprint
+      let visitorId = '';
+      try {
+        const fp = await FingerprintJS.load();
+        const result = await fp.get();
+        visitorId = result.visitorId;
+      } catch {
+        let cached = localStorage.getItem('op_visitor_token');
+        if (!cached) {
+          cached = 'v_' + Math.random().toString(36).substring(2, 12);
+          localStorage.setItem('op_visitor_token', cached);
+        }
+        visitorId = cached;
+      }
+
+      const finalId = `${ip}_${visitorId}`;
+      setDeviceId(finalId);
+      return finalId;
+    } catch (err) {
+      console.error('Device ID error:', err);
+      const fallback = 'dev_' + Math.random().toString(36).substring(2, 12);
+      setDeviceId(fallback);
+      return fallback;
+    }
+  }, [deviceId]);
+
+  // Setup Realtime Sync
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncData = async () => {
+      if (!window.storage) return;
+      try {
+        const [songsRes, nowPlayingRes] = await Promise.all([
+          window.storage.list('song:'),
+          window.storage.get('now_playing')
+        ]);
+
+        if (songsRes?.keys?.length) {
+          const loadedSongs = await Promise.all(
+            songsRes.keys.map(async (key) => {
+              const data = await window.storage.get(key);
+              if (!data?.value) return null;
+              try {
+                return typeof data.value === 'object' ? data.value : JSON.parse(data.value);
+              } catch {
+                return null;
+              }
+            })
+          );
+          if (isMounted) {
+            setSongs(loadedSongs.filter(Boolean).sort((a, b) => (b.votes || 0) - (a.votes || 0)));
+          }
+        } else if (isMounted) {
+          setSongs([]);
+        }
+
+        if (nowPlayingRes?.value && isMounted) {
+          const np = typeof nowPlayingRes.value === 'object' ? nowPlayingRes.value : JSON.parse(nowPlayingRes.value);
+          setCurrentSong(np);
+          setDuration(np.duration || 0);
+        } else if (isMounted) {
+          setCurrentSong(null);
+        }
+      } catch (err) {
+        console.error('Sync error:', err);
+      }
+    };
+
+    syncData();
+
+    const unsubscribe = window.storage?.onUpdate?.(() => {
+      syncData();
     });
 
     return () => {
+      isMounted = false;
       if (unsubscribe) unsubscribe();
     };
   }, [mode]);
 
-
+  // Guest Progress Calculation
   useEffect(() => {
-    if (songs.length > 0 && !currentSong && mode === 'admin' && isAdminLoggedIn) {
-      const topSong = [...songs].sort((a, b) => b.votes - a.votes)[0];
-      if (topSong) playSong(topSong);
-    }
-  }, [songs, currentSong, mode, isAdminLoggedIn]);
-
-  // Update progress for users watching
-  useEffect(() => {
-    let progressInterval;
-
-    if (mode === 'user' && currentSong) {
-      if (currentSong.startTime) {
-        // Calculate initial elapsed time
-        const initialElapsed = Math.floor((Date.now() - currentSong.startTime) / 1000);
-        setCurrentTime(Math.max(0, Math.min(initialElapsed, currentSong.duration || 0)));
-
-        // Update every second
-        progressInterval = setInterval(() => {
-          const elapsed = Math.floor((Date.now() - currentSong.startTime) / 1000);
-          const clampedTime = Math.max(0, Math.min(elapsed, currentSong.duration || 0));
-          setCurrentTime(clampedTime);
-        }, 1000);
-      } else {
-        // If no startTime, just show 0
-        setCurrentTime(0);
-      }
+    if (mode !== 'user' || !currentSong?.startTime) {
+      return;
     }
 
-    return () => {
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
-    };
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - currentSong.startTime) / 1000);
+      const maxDur = currentSong.duration || 0;
+      setCurrentTime(maxDur > 0 ? Math.min(elapsed, maxDur) : elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, [mode, currentSong]);
 
-  // Get device ID using ip-api.com + FingerprintJS
-  const getDeviceId = async () => {
-    try {
-      console.log('🔍 Generating device ID with ip-api.com + FingerprintJS...');
-
-      let ip = 'unknown';
-
-      // Get IP and location from ip-api.com
-      try {
-        const ipResponse = await fetch('https://api.ipify.org/?format=json', {
-          cache: 'no-cache'
-        });
-
-        if (ipResponse.ok) {
-          const ipData = await ipResponse.json();
-
-          if (ipData.status === 'success') {
-            ip = ipData.query; // This is the IP address: "14.194.129.238"
-
-            console.log('🌐 IP Info:');
-            console.log('  IP Address:', ipData.query);
-            console.log('  Location:', `${ipData.city}, ${ipData.regionName}, ${ipData.country}`);
-            console.log('  ISP:', ipData.isp);
-            console.log('  Timezone:', ipData.timezone);
-          } else {
-            console.warn('⚠️ IP API failed');
-            ip = 'blocked';
-          }
-        }
-      } catch (ipError) {
-        console.warn('⚠️ IP fetch blocked or failed:', ipError.message);
-        ip = 'blocked';
-      }
-
-      // Load FingerprintJS library
-      console.log('🖐️ Generating browser fingerprint...');
-      const fp = await FingerprintJS.load();
-
-      // Get the visitor identifier (unique fingerprint)
-      const result = await fp.get();
-      const visitorId = result.visitorId;
-
-      console.log('🖐️ Fingerprint ID:', visitorId);
-      console.log('📊 Confidence:', result.confidence.score);
-
-      // Combine IP + FingerprintJS ID
-      const deviceId = `${ip}_${visitorId}`;
-
-      console.log('=====================================');
-      console.log('🔐 FINAL DEVICE ID:', deviceId);
-      console.log('=====================================');
-
-      return deviceId;
-
-    } catch (error) {
-      console.error('❌ Failed to generate device ID:', error);
-      alert('Unable to verify your device. Please try again.');
-      return null;
-    }
-  };
-
-
-
-  const loadSongs = async () => {
-    try {
-      const result = await window.storage.list('song:');
-      if (result && result.keys && result.keys.length > 0) {
-        const loadedSongs = await Promise.all(
-          result.keys.map(async (key) => {
-            const data = await window.storage.get(key);
-            return data ? JSON.parse(data.value) : null;
-          })
-        );
-        const validSongs = loadedSongs.filter(Boolean).sort((a, b) => b.votes - a.votes);
-        setSongs(validSongs);
-        console.log('📋 Loaded songs:', validSongs.length);
-      } else {
-        setSongs([]);
-      }
-    } catch (error) {
-      console.error('Error loading songs:', error);
-    }
-  };
-
+  // Search function with multi-endpoint fallback
   const searchYouTube = async () => {
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
-    let success = false;
-    let instanceIndex = currentInstance;
+    let results = [];
 
-    while (!success && instanceIndex < pipedInstances.length) {
+    for (const endpoint of searchEndpoints) {
       try {
-        const query = encodeURIComponent(searchQuery + ' official audio');
-        const response = await fetch(
-          `${pipedInstances[instanceIndex]}/search?q=${query}&filter=music_songs`,
-          { signal: AbortSignal.timeout(10000) }
-        );
+        const response = await fetch(endpoint.url(searchQuery.trim()), {
+          signal: AbortSignal.timeout(6000)
+        });
 
-        if (!response.ok) throw new Error('Instance failed');
+        if (!response.ok) continue;
 
         const data = await response.json();
-
-        const results = data.items.slice(0, 6).map(item => ({
-          youtubeId: item.url.split('v=')[1] || item.url.split('/').pop(),
-          title: item.title.replace(/ \((Official Audio|Official Video|Audio)\)/g, ''),
-          artist: item.uploaderName,
-          thumbnail: item.thumbnail,
-          duration: item.duration,
-          durationText: formatDuration(item.duration)
-        }));
-
-        setSearchResults(results);
-        setCurrentInstance(instanceIndex);
-        success = true;
-      } catch (error) {
-        console.error(`Instance ${instanceIndex} failed:`, error);
-        instanceIndex++;
+        const parsed = endpoint.parse(data);
+        if (parsed && parsed.length > 0) {
+          results = parsed.filter(item => item.youtubeId);
+          if (results.length > 0) break;
+        }
+      } catch (err) {
+        console.warn('Search mirror attempt failed:', err);
       }
     }
 
-    if (!success) {
-      alert('Search unavailable. Please try again later.');
+    if (results.length > 0) {
+      setSearchResults(results);
+    } else {
+      showToast('No tracks found or search services busy. Try a different query.', 'warning');
     }
 
     setIsSearching(false);
   };
 
-  const formatDuration = (seconds) => {
-    if (!seconds) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
+  // Add song to queue
   const addSongToQueue = async (song) => {
-    const exists = songs.some(s => s.youtubeId === song.youtubeId);
-    if (exists) {
-      alert('This song is already in the queue!');
+    if (!song || !song.youtubeId) {
+      showToast('Invalid track selection.', 'error');
       return;
     }
 
-    const songId = `song:${Date.now()}`;
-    const newSong = {
-      id: songId,
-      ...song,
-      votes: 0,
-      addedAt: Date.now(),
-      votedBy: []
-    };
+    const exists = songs.some(s => s.youtubeId === song.youtubeId);
+    if (exists) {
+      showToast('This track is already in the queue!', 'warning');
+      return;
+    }
+
+    const currentDevId = await getDeviceId();
+    const newSong = createSongEntry(song, currentDevId);
 
     try {
-      await window.storage.set(songId, JSON.stringify(newSong));
-      console.log('✅ Song added to Firebase');
+      await window.storage.set(newSong.id, JSON.stringify(newSong));
+      showToast(`Added "${song.title}" to the queue!`, 'success');
       setSearchResults([]);
       setSearchQuery('');
     } catch (error) {
       console.error('Error adding song:', error);
-      alert('Failed to add song. Please try again.');
+      showToast('Failed to add song to queue.', 'error');
     }
   };
 
+  // Vote for a song
   const voteSong = async (songId) => {
-    // ALWAYS regenerate device ID (don't trust localStorage)
-    const deviceId = await getDeviceId();
+    const currentDevId = await getDeviceId();
 
-    if (!deviceId) {
-      alert('Unable to verify your device. Please try again.');
+    if (!currentDevId) {
+      showToast('Unable to verify device for voting.', 'error');
       return;
     }
-
-    console.log('🎯 Attempting to vote with device ID:', deviceId);
 
     const song = songs.find(s => s.id === songId);
     if (!song) return;
 
-    // Check if this device already voted
-    if (song.votedBy && song.votedBy.includes(deviceId)) {
-      alert('⚠️ You already voted for this song from this device!');
-      console.log('❌ Vote blocked - already voted');
+    if (song.votedBy && song.votedBy.includes(currentDevId)) {
+      showToast('You have already voted for this track!', 'warning');
       return;
     }
 
     const updatedSong = {
       ...song,
-      votes: song.votes + 1,
-      votedBy: [...(song.votedBy || []), deviceId]
+      votes: (song.votes || 0) + 1,
+      votedBy: [...(song.votedBy || []), currentDevId]
     };
 
     try {
       await window.storage.set(songId, JSON.stringify(updatedSong));
-      console.log('✅ Vote recorded! Device ID:', deviceId);
-      console.log('📋 Total votes for this song:', updatedSong.votes);
+      showToast(`Voted for "${song.title}"! (+1)`, 'success');
     } catch (error) {
-      console.error('❌ Error voting:', error);
-      alert('Failed to vote. Please try again.');
+      console.error('Error voting:', error);
+      showToast('Failed to record vote.', 'error');
     }
   };
 
+  // Play a song in Admin DJ mode
+  const playSong = useCallback(async (song) => {
+    if (!song) return;
+    console.log('▶️ Playing song:', song.title, song.youtubeId);
 
+    const nowPlayingData = {
+      ...song,
+      startTime: Date.now()
+    };
 
+    setCurrentSong(nowPlayingData);
+    setDuration(song.duration || 0);
+    setCurrentTime(0);
 
-  const playSong = async (song) => {
-    console.log('▶️ Playing:', song.title, 'ID:', song.id);
-    setCurrentSong(song);
-
-    // Store currently playing song in Firebase so all users can see it
     try {
-      await window.storage.set('now_playing', JSON.stringify({
-        ...song,
-        startTime: Date.now()
-      }));
-      console.log('✅ Stored now_playing in Firebase');
-    } catch (error) {
-      console.error('❌ Error storing now_playing:', error);
-    }
-
-    if (playerRef.current) {
-      playerRef.current.destroy();
+      await window.storage.set('now_playing', JSON.stringify(nowPlayingData));
+    } catch (err) {
+      console.error('Error setting now_playing:', err);
     }
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
 
-    playerRef.current = new window.YT.Player('youtube-player', {
-      height: '0',
-      width: '0',
-      videoId: song.youtubeId,
-      playerVars: {
-        autoplay: 1,
-        controls: 0,
-      },
-      events: {
-        onReady: (event) => {
-          console.log('Player ready');
-          event.target.setVolume(volume);
-          event.target.playVideo();
-          setIsPlaying(true);
-          setDuration(event.target.getDuration());
-
-          intervalRef.current = setInterval(() => {
-            if (playerRef.current && playerRef.current.getCurrentTime) {
-              setCurrentTime(playerRef.current.getCurrentTime());
-            }
-          }, 500);
-        },
-        onStateChange: (event) => {
-          if (event.data === window.YT.PlayerState.PLAYING) {
-            setIsPlaying(true);
-          } else if (event.data === window.YT.PlayerState.PAUSED) {
-            setIsPlaying(false);
-          } else if (event.data === window.YT.PlayerState.ENDED) {
-            console.log('🔚 Song ended:', song.title, 'ID:', song.id);
-            setIsPlaying(false);
-
-            // Delete the finished song from Firebase
-            deleteSongAndPlayNext(song.id);
-          }
-        },
-        onError: (event) => {
-          console.error('YouTube player error:', event.data);
-          alert('Failed to play song. Trying next...');
-          deleteSongAndPlayNext(song.id);
-        }
+    // Reuse existing player if available
+    if (playerRef.current && typeof playerRef.current.loadVideoById === 'function') {
+      try {
+        playerRef.current.loadVideoById(song.youtubeId);
+        playerRef.current.setVolume(volume);
+        playerRef.current.playVideo();
+        setIsPlaying(true);
+        return;
+      } catch (err) {
+        console.warn('loadVideoById failed, recreating player:', err);
       }
-    });
-  };
+    }
 
-  const loadNowPlaying = async () => {
+    // Initialize new player safely
+    const initPlayer = () => {
+      if (!window.YT || !window.YT.Player) {
+        setTimeout(initPlayer, 200);
+        return;
+      }
+
+      const playerContainer = document.getElementById('youtube-player');
+      if (!playerContainer) return;
+
+      try {
+        playerRef.current = new window.YT.Player('youtube-player', {
+          height: '0',
+          width: '0',
+          videoId: song.youtubeId,
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            playsinline: 1,
+            enablejsapi: 1
+          },
+          events: {
+            onReady: (event) => {
+              event.target.setVolume(volume);
+              event.target.playVideo();
+              setIsPlaying(true);
+              const trackDuration = event.target.getDuration();
+              if (trackDuration) setDuration(trackDuration);
+
+              intervalRef.current = setInterval(() => {
+                if (playerRef.current && playerRef.current.getCurrentTime) {
+                  const curr = playerRef.current.getCurrentTime();
+                  setCurrentTime(curr);
+                  const dur = playerRef.current.getDuration();
+                  if (dur) setDuration(dur);
+                }
+              }, 500);
+            },
+            onStateChange: (event) => {
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setIsPlaying(true);
+              } else if (event.data === window.YT.PlayerState.PAUSED) {
+                setIsPlaying(false);
+              } else if (event.data === window.YT.PlayerState.ENDED) {
+                setIsPlaying(false);
+                deleteSongAndPlayNextRef.current?.(song.id);
+              }
+            },
+            onError: (event) => {
+              console.error('YouTube player error:', event.data);
+              showToast('Track playback failed, skipping to next...', 'warning');
+              deleteSongAndPlayNextRef.current?.(song.id);
+            }
+          }
+        });
+      } catch (e) {
+        console.error('Player instantiation error:', e);
+      }
+    };
+
+    initPlayer();
+  }, [volume, showToast]);
+
+  // Delete song and advance queue
+  const deleteSongAndPlayNext = useCallback(async (songId) => {
     try {
-      const result = await window.storage.get('now_playing');
-      if (result && result.value) {
-        const nowPlayingSong = JSON.parse(result.value);
-        setCurrentSong(nowPlayingSong);
-        setDuration(nowPlayingSong.duration || 0);
+      const remainingSongs = songs.filter(s => s.id !== songId);
+      const nextSong = [...remainingSongs].sort((a, b) => (b.votes || 0) - (a.votes || 0))[0] || null;
 
-        console.log('🎵 Now playing loaded:', nowPlayingSong.title);
-        console.log('Start time:', nowPlayingSong.startTime);
-        console.log('Duration:', nowPlayingSong.duration);
+      await window.storage.delete(songId);
+
+      if (nextSong) {
+        playSong(nextSong);
       } else {
+        await window.storage.delete('now_playing');
         setCurrentSong(null);
+        setIsPlaying(false);
         setCurrentTime(0);
         setDuration(0);
       }
-    } catch (error) {
-      console.error('Error loading now playing:', error);
+    } catch (err) {
+      console.error('Error transitioning song:', err);
     }
-  };
+  }, [songs, playSong]);
 
-
-
-  const deleteSongAndPlayNext = async (songId) => {
-    console.log('🗑️ Attempting to delete song ID:', songId);
-
-    try {
-      // Delete from Firebase first
-      await window.storage.delete(songId);
-      console.log('✅ Successfully deleted song from Firebase:', songId);
-
-      // Clear now_playing temporarily
-      await window.storage.delete('now_playing');
-
-      // Reset time states immediately to prevent UI flicker
-      setCurrentTime(0);
-      setDuration(0);
-
-      // Immediately update local state by filtering out the deleted song
-      setSongs(prevSongs => {
-        const updatedSongs = prevSongs.filter(s => s.id !== songId);
-        console.log('📋 Songs after deletion:', updatedSongs.map(s => s.title));
-
-        // Clear current song
-        setCurrentSong(null);
-        setIsPlaying(false);
-
-        // Play next song with the UPDATED list
-        setTimeout(() => {
-          if (updatedSongs.length > 0) {
-            const nextSong = [...updatedSongs].sort((a, b) => b.votes - a.votes)[0];
-            console.log('✅ Playing next:', nextSong.title);
-            playSong(nextSong);
-          } else {
-            console.log('❌ No more songs in queue');
-            setCurrentSong(null);
-            setIsPlaying(false);
-          }
-        }, 800);
-
-        return updatedSongs;
-      });
-
-    } catch (error) {
-      console.error('❌ Error deleting song:', error);
-      // Fallback: reload from Firebase
-      await loadSongs();
-      setTimeout(() => {
-        playNextSong();
-      }, 1000);
-    }
-  };
+  // Keep ref updated
+  useEffect(() => {
+    deleteSongAndPlayNextRef.current = deleteSongAndPlayNext;
+  }, [deleteSongAndPlayNext]);
 
   const togglePlayPause = () => {
     if (!playerRef.current) return;
-
     if (isPlaying) {
-      playerRef.current.pauseVideo();
-    } else {
-      playerRef.current.playVideo();
-    }
-  };
-
-  const playNextSong = () => {
-    console.log('🎵 playNextSong called, songs available:', songs.length);
-
-    if (songs.length === 0) {
-      console.log('❌ No more songs in queue');
-      setCurrentSong(null);
+      if (typeof playerRef.current.pauseVideo === 'function') playerRef.current.pauseVideo();
       setIsPlaying(false);
-      return;
-    }
-
-    // Get the most voted song
-    const sortedSongs = [...songs].sort((a, b) => b.votes - a.votes);
-    const nextSong = sortedSongs[0];
-
-    console.log('✅ Playing next song:', nextSong.title, 'Votes:', nextSong.votes);
-    playSong(nextSong);
-  };
-
-
-
-  const removeSong = async (songId) => {
-    if (mode !== 'admin') return;
-
-    try {
-      await window.storage.delete(songId);
-      console.log('✅ Song removed from Firebase');
-      if (currentSong?.id === songId) {
-        if (playerRef.current) {
-          playerRef.current.destroy();
-        }
-        setCurrentSong(null);
-        setIsPlaying(false);
-        // Auto-play next song if available
-        if (songs.length > 1) {
-          const nextSong = songs.find(s => s.id !== songId);
-          if (nextSong) playSong(nextSong);
-        }
-      }
-    } catch (error) {
-      console.error('Error removing song:', error);
+    } else {
+      if (typeof playerRef.current.playVideo === 'function') playerRef.current.playVideo();
+      setIsPlaying(true);
     }
   };
 
   const handleSeek = (e) => {
-    if (!playerRef.current || mode !== 'admin') return;
+    if (!playerRef.current || mode !== 'admin' || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    playerRef.current.seekTo(percent * duration, true);
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const seekTime = percent * duration;
+    if (typeof playerRef.current.seekTo === 'function') {
+      playerRef.current.seekTo(seekTime, true);
+      setCurrentTime(seekTime);
+    }
   };
 
   const handleVolumeChange = (e) => {
     if (mode !== 'admin') return;
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if (playerRef.current && playerRef.current.setVolume) {
+    if (playerRef.current && typeof playerRef.current.setVolume === 'function') {
       playerRef.current.setVolume(newVolume);
+    }
+  };
+
+  const removeSong = async (songId) => {
+    if (mode !== 'admin') return;
+    try {
+      await window.storage.delete(songId);
+      showToast('Removed song from queue.', 'info');
+      if (currentSong?.id === songId) {
+        deleteSongAndPlayNext(songId);
+      }
+    } catch (error) {
+      console.error('Error removing song:', error);
     }
   };
 
   const handleLogout = () => {
     setMode(null);
     setIsAdminLoggedIn(false);
-    if (playerRef.current) {
-      playerRef.current.destroy();
+    sessionStorage.removeItem('op_admin_authenticated');
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
+      playerRef.current.pauseVideo();
     }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+  };
+
+  const startPartyWithTopSong = () => {
+    if (songs.length > 0) {
+      const topSong = [...songs].sort((a, b) => (b.votes || 0) - (a.votes || 0))[0];
+      if (topSong) playSong(topSong);
     }
   };
 
-  const handleSwitchToUser = () => {
-    setMode('user');
-  };
-
-  const handleBackToMenu = () => {
-    setMode(null);
-  };
-
-  // Filter out currently playing song from the queue display
   const queueSongs = songs.filter(song => song.id !== currentSong?.id);
 
   if (!mode) {
@@ -667,275 +737,410 @@ export default function MusicVoter() {
   }
 
   if (mode === 'admin' && !isAdminLoggedIn) {
-    return <AdminLogin onLogin={() => setIsAdminLoggedIn(true)} onSwitchToUser={handleSwitchToUser} onBack={handleBackToMenu} />;
+    return (
+      <AdminLogin
+        onLogin={() => setIsAdminLoggedIn(true)}
+        onSwitchToUser={() => setMode('user')}
+        onBack={() => setMode(null)}
+      />
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 p-2 sm:p-4">
-      <div id="youtube-player" style={{ display: 'none' }}></div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-700 via-pink-600 to-rose-600 p-3 sm:p-6 text-white selection:bg-pink-500 selection:text-white">
+      {/* Hidden YouTube Player IFrame */}
+      <div id="youtube-player" className="hidden"></div>
 
-      <div className="w-full max-w-md sm:max-w-2xl md:max-w-4xl mx-auto px-2 sm:px-0">
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
+      <div className="w-full max-w-3xl mx-auto space-y-6">
         {/* Header */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 mb-6 shadow-2xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {mode === 'admin' ? <Shield className="w-10 h-10 text-white" /> : <Users className="w-10 h-10 text-white" />}
-              <div>
-                <h1 className="text-4xl font-bold text-white">Office Party DJ</h1>
-                <p className="text-white/80 text-sm">
-                  {mode === 'admin' ? '🎛️ DJ Control Panel • Full Access' : '🎵 Party Mode • Add & Vote for Songs'}
-                </p>
-              </div>
+        <header className="bg-white/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/20 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-white/20 rounded-2xl shadow-inner backdrop-blur-sm">
+              {mode === 'admin' ? (
+                <Shield className="w-7 h-7 text-pink-200" />
+              ) : (
+                <Users className="w-7 h-7 text-purple-200" />
+              )}
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 text-sm sm:px-4 sm:py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all"
-            >
-              <LogOut className="w-5 h-5" />
-              Exit
-            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Office Party DJ</h1>
+                <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 border border-white/30 text-white/90">
+                  <Radio className="w-3 h-3 text-emerald-400 animate-pulse" /> Live
+                </span>
+              </div>
+              <p className="text-white/80 text-xs sm:text-sm font-medium">
+                {mode === 'admin' ? '🎛️ DJ Control Deck • Host Access' : '🎵 Party Vibe • Add & Vote for Next Tracks'}
+              </p>
+            </div>
           </div>
-        </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-xl transition-all text-xs sm:text-sm font-medium border border-white/20 shadow-md cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Exit</span>
+          </button>
+        </header>
 
         {/* Search Box */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 mb-6 shadow-2xl">
-          <div className="flex gap-3">
+        <section className="bg-white/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/20">
+          <div className="flex gap-2.5 sm:gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/60 w-5 h-5" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/60 w-5 h-5 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && searchYouTube()}
-                placeholder="Search for a song..."
-                className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-4 bg-white/20 border border-white/30 rounded-2xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-sm sm:text-base"
+                onKeyDown={(e) => e.key === 'Enter' && searchYouTube()}
+                placeholder="Search song or artist..."
+                className="w-full pl-11 pr-4 py-3.5 bg-white/15 border border-white/25 rounded-2xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm sm:text-base transition-all"
               />
-
             </div>
             <button
               onClick={searchYouTube}
-              disabled={isSearching}
-              className="px-4 py-3 text-sm sm:px-8 sm:py-4 bg-white text-purple-600 rounded-2xl font-semibold hover:bg-white/90 disabled:opacity-50 transition-all shadow-lg"
+              disabled={isSearching || !searchQuery.trim()}
+              className="px-5 sm:px-7 py-3.5 bg-white text-purple-700 rounded-2xl font-bold hover:bg-white/95 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm flex items-center gap-2 flex-shrink-0 cursor-pointer"
             >
-              {isSearching ? 'Searching...' : 'Search'}
+              {isSearching ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="hidden sm:inline">Searching</span>
+                </>
+              ) : (
+                'Search'
+              )}
             </button>
           </div>
 
+          {/* Search Results List */}
           {searchResults.length > 0 && (
-            <div className="mt-4 space-y-2">
+            <div className="mt-5 space-y-2.5 max-h-96 overflow-y-auto pr-1">
+              <div className="flex items-center justify-between text-xs text-white/70 px-1">
+                <span>Results for "{searchQuery}"</span>
+                <button
+                  onClick={() => setSearchResults([])}
+                  className="hover:text-white underline text-xs cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
               {searchResults.map((result, idx) => (
-                <div key={idx} className="bg-white/20 rounded-xl p-4 flex gap-4 items-center">
+                <div
+                  key={result.youtubeId || idx}
+                  className="bg-white/15 hover:bg-white/20 border border-white/15 rounded-2xl p-3 sm:p-4 flex items-center gap-3.5 transition-all shadow-sm"
+                >
                   <img
                     src={result.thumbnail}
                     alt={result.title}
-                    className="w-16 h-16 object-cover rounded-lg"
+                    className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-xl shadow flex-shrink-0 bg-black/20"
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=200&fit=crop';
+                    }}
                   />
-                  <div className="flex-1">
-                    <p className="text-white font-semibold text-sm">{result.title}</p>
-                    <p className="text-white/70 text-xs">{result.artist}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-white/80 text-sm">
-                    <Clock className="w-4 h-4" />
-                    {result.durationText}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm sm:text-base truncate leading-snug">{result.title}</p>
+                    <p className="text-white/70 text-xs truncate mt-0.5">{result.artist}</p>
+                    <div className="flex items-center gap-1.5 text-white/60 text-xs mt-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{result.durationText}</span>
+                    </div>
                   </div>
                   <button
                     onClick={() => addSongToQueue(result)}
-                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all font-semibold"
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs sm:text-sm rounded-xl font-bold transition-all shadow-md flex-shrink-0 cursor-pointer"
                   >
-                    Add
+                    + Add
                   </button>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Now Playing - Admin Only with Controls */}
-        {mode === 'admin' && currentSong && (
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 mb-6 shadow-2xl">
-            <h2 className="text-2xl font-bold text-white mb-4">🎵 Now Playing</h2>
-            <div className="bg-white/20 rounded-xl p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <img
-                  src={currentSong.thumbnail}
-                  alt={currentSong.title}
-                  className="w-24 h-24 object-cover rounded-lg shadow-lg"
-                />
-                <div className="flex-1">
-                  <p className="text-white font-bold text-xl">{currentSong.title}</p>
-                  <p className="text-white/70">{currentSong.artist}</p>
-                  <div className="flex items-center gap-2 mt-2 text-white/60 text-sm">
-                    <Clock className="w-4 h-4" />
-                    {currentSong.durationText}
+        {/* Now Playing - Admin DJ Deck */}
+        {mode === 'admin' && (
+          <section className="bg-white/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/20">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                <Flame className="w-6 h-6 text-amber-300 animate-pulse" />
+                <span>Now Playing Deck</span>
+              </h2>
+              {currentSong ? (
+                <span className="px-3 py-1 bg-pink-500/40 rounded-full text-xs font-semibold border border-pink-300/40">
+                  DJ Control Active
+                </span>
+              ) : songs.length > 0 ? (
+                <button
+                  onClick={startPartyWithTopSong}
+                  className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white rounded-full text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Start Party (#1 Track)</span>
+                </button>
+              ) : null}
+            </div>
+
+            {currentSong ? (
+              <div className="bg-white/15 border border-white/15 rounded-2xl p-5 sm:p-6 space-y-5">
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={currentSong.thumbnail}
+                      alt={currentSong.title}
+                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-2xl shadow-xl bg-black/20"
+                    />
+                    {isPlaying && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-lg sm:text-xl truncate leading-tight">{currentSong.title}</h3>
+                    <p className="text-white/80 text-sm truncate mt-1">{currentSong.artist}</p>
+                    <div className="flex items-center gap-2 mt-2 text-white/60 text-xs">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{currentSong.durationText || formatDuration(currentSong.duration)}</span>
+                      <span>•</span>
+                      <span className="text-pink-200 font-semibold">{currentSong.votes || 0} votes</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interactive Progress Bar */}
+                <div className="space-y-1.5">
+                  <div
+                    className="w-full h-2.5 bg-white/20 rounded-full cursor-pointer overflow-hidden relative group"
+                    onClick={handleSeek}
+                    title="Click to seek"
+                  >
+                    <div
+                      className="h-full bg-gradient-to-r from-pink-400 to-purple-400 rounded-full transition-all duration-300 ease-out"
+                      style={{
+                        width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%`
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-white/70 text-xs font-mono">
+                    <span>{formatDuration(currentTime)}</span>
+                    <span>{formatDuration(duration)}</span>
+                  </div>
+                </div>
+
+                {/* Control Actions */}
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-white/10">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={togglePlayPause}
+                      className="px-5 py-2.5 bg-white text-purple-800 rounded-xl font-bold hover:bg-white/90 active:scale-95 transition-all shadow-lg flex items-center gap-2 text-sm cursor-pointer"
+                    >
+                      {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                      <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                    </button>
+                    <button
+                      onClick={() => deleteSongAndPlayNext(currentSong.id)}
+                      className="px-4 py-2.5 bg-white/20 hover:bg-white/30 active:scale-95 text-white rounded-xl font-semibold transition-all flex items-center gap-2 text-sm border border-white/20 cursor-pointer"
+                    >
+                      <SkipForward className="w-4 h-4" />
+                      <span>Next Track</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 flex-1 max-w-xs min-w-[160px]">
+                    <Volume2 className="w-4 h-4 text-white/80 flex-shrink-0" />
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="2"
+                      value={volume}
+                      onChange={handleVolumeChange}
+                      className="w-full accent-pink-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
+                      title={`Volume: ${volume}%`}
+                    />
+                    <span className="text-xs text-white/70 font-mono w-8 text-right">{volume}%</span>
                   </div>
                 </div>
               </div>
-
-              {/* Progress Bar */}
-              <div
-                className="w-full h-2 bg-white/20 rounded-full mb-2 cursor-pointer overflow-hidden"
-                onClick={handleSeek}
-              >
-                <div
-                  className="h-full bg-white rounded-full transition-all duration-500 ease-linear"
-                  style={{
-                    width: `${duration && currentTime <= duration ? (currentTime / duration) * 100 : 0}%`,
-                    maxWidth: '100%'
-                  }}
-                />
-              </div>
-
-              <div className="flex justify-between text-white/60 text-xs mb-4">
-                <span>{formatDuration(Math.floor(currentTime))}</span>
-                <span>{formatDuration(Math.floor(duration))}</span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <button
-                  onClick={togglePlayPause}
-                  className="w-full sm:w-auto px-6 py-3 bg-white text-purple-600 rounded-xl font-semibold hover:bg-white/90 flex items-center justify-center gap-2 shadow-lg"
-                >
-                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                  {isPlaying ? 'Pause' : 'Play'}
-                </button>
-                <button
-                  onClick={() => {
-                    if (currentSong) {
-                      deleteSongAndPlayNext(currentSong.id);
-                    }
-                  }}
-                  className="w-full sm:w-auto px-6 py-3 bg-white/20 text-white rounded-xl font-semibold hover:bg-white/30 flex items-center justify-center gap-2"
-                >
-                  <SkipForward className="w-5 h-5" />
-                  Next
-                </button>
-                <div className="flex items-center gap-2 sm:flex-1 sm:ml-4">
-                  <Volume2 className="w-5 h-5 text-white flex-shrink-0" />
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={volume}
-                    onChange={handleVolumeChange}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-
-
-
-            </div>
-          </div>
-        )}
-
-        {/* Currently Playing - User View (NO CONTROLS) */}
-        {mode === 'user' && currentSong && (
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 mb-6 shadow-2xl">
-            <h2 className="text-2xl font-bold text-white mb-4">🎵 Now Playing</h2>
-            <div className="bg-white/20 rounded-xl p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <img
-                  src={currentSong.thumbnail}
-                  alt={currentSong.title}
-                  className="w-24 h-24 object-cover rounded-lg shadow-lg"
-                />
-                <div className="flex-1">
-                  <p className="text-white font-bold text-xl">{currentSong.title}</p>
-                  <p className="text-white/70">{currentSong.artist}</p>
-                  <div className="flex items-center gap-2 mt-2 text-white/60 text-sm">
-                    <Clock className="w-4 h-4" />
-                    {currentSong.durationText || formatDuration(currentSong.duration)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress Bar - View Only (No Click)
-              <div className="w-full h-2 bg-white/20 rounded-full mb-2 overflow-hidden">
-                <div
-                  className="h-full bg-white rounded-full transition-all duration-500 ease-linear"
-                  style={{
-                    width: `${currentSong.duration && currentTime >= 0 && currentTime <= currentSong.duration
-                      ? (currentTime / currentSong.duration) * 100
-                      : 0}%`,
-                    maxWidth: '100%'
-                  }}
-                />
-              </div> */}
-              {/* <div className="flex justify-between text-white/60 text-xs">
-                <span>{currentTime >= 0 ? formatDuration(Math.floor(currentTime)) : '0:00'}</span>
-                <span>{currentSong.durationText || formatDuration(currentSong.duration)}</span>
-              </div> */}
-            </div>
-          </div>
-        )}
-
-
-
-
-        {/* Song Queue - Excluding Currently Playing Song */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 shadow-2xl">
-          <h2 className="text-2xl font-bold text-white mb-4">🎶 Song Queue ({queueSongs.length})</h2>
-          <div className="space-y-3">
-            {queueSongs.length === 0 ? (
-              <p className="text-white/60 text-center py-8">
-                {currentSong ? 'No more songs in queue. Add more to keep the party going!' : 'No songs yet. Add one to get the party started!'}
-              </p>
             ) : (
-              queueSongs.map((song, idx) => (
-                <div
-                  key={song.id}
-                  className="bg-white/20 rounded-xl transition-all"
-                >
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4">
-                    {/* Left side: Song info */}
-                    <div className="flex items-center gap-3 w-full sm:flex-1 min-w-0">
-                      <div className="text-white/60 font-bold text-base sm:text-lg w-8 flex-shrink-0">#{idx + 1}</div>
-                      <img
-                        src={song.thumbnail}
-                        alt={song.title}
-                        className="w-12 h-12 sm:w-14 sm:h-14 object-cover rounded-lg flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-semibold text-sm sm:text-base truncate">{song.title}</p>
-                        <div className="flex items-center gap-2 text-white/70 text-xs sm:text-sm">
-                          <span className="truncate">{song.artist}</span>
-                          <span className="flex-shrink-0">•</span>
-                          <span className="flex items-center gap-1 flex-shrink-0">
-                            <Clock className="w-3 h-3" />
-                            {song.durationText}
-                          </span>
+              <div className="text-center py-8 bg-white/10 border border-white/10 rounded-2xl">
+                <Music className="w-12 h-12 text-white/40 mx-auto mb-3 animate-pulse" />
+                <p className="text-white/80 font-medium">No track currently playing</p>
+                <p className="text-white/60 text-xs mt-1">
+                  {songs.length > 0
+                    ? 'Click "Start Party" above to play the most-voted track!'
+                    : 'Search and add tracks below to get the queue started.'}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Now Playing - Guest / User View */}
+        {mode === 'user' && (
+          <section className="bg-white/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/20">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                <Flame className="w-6 h-6 text-amber-300 animate-pulse" />
+                <span>Now Playing</span>
+              </h2>
+              <span className="px-3 py-1 bg-purple-500/40 rounded-full text-xs font-semibold border border-purple-300/40">
+                Party Audio
+              </span>
+            </div>
+
+            {currentSong ? (
+              <div className="bg-white/15 border border-white/15 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={currentSong.thumbnail}
+                      alt={currentSong.title}
+                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-2xl shadow-xl bg-black/20"
+                    />
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-4 w-4 bg-pink-500"></span>
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-lg sm:text-xl truncate leading-tight">{currentSong.title}</h3>
+                    <p className="text-white/80 text-sm truncate mt-1">{currentSong.artist}</p>
+                    <div className="flex items-center gap-2 mt-2 text-white/60 text-xs">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{currentSong.durationText || formatDuration(currentSong.duration)}</span>
+                      <span>•</span>
+                      <span className="text-amber-200 font-semibold">{currentSong.votes || 0} votes</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Read-Only Live Progress Bar */}
+                <div className="space-y-1.5 pt-2 border-t border-white/10">
+                  <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-pink-400 to-amber-300 rounded-full transition-all duration-1000 ease-linear"
+                      style={{
+                        width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%`
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-white/70 text-xs font-mono">
+                    <span>{formatDuration(currentTime)}</span>
+                    <span>{formatDuration(duration)}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-white/10 border border-white/10 rounded-2xl">
+                <Music className="w-12 h-12 text-white/40 mx-auto mb-3" />
+                <p className="text-white/80 font-medium">No track currently on deck</p>
+                <p className="text-white/60 text-xs mt-1">Search and add tracks below to get the AUX rolling!</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Song Queue */}
+        <section className="bg-white/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/20">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Music className="w-6 h-6 text-pink-300" />
+              <span>Up Next in Queue ({queueSongs.length})</span>
+            </h2>
+            <span className="text-xs text-white/70 font-medium">Sorted by Votes</span>
+          </div>
+
+          {queueSongs.length === 0 ? (
+            <div className="text-center py-10 bg-white/10 border border-white/10 rounded-2xl">
+              <Sparkles className="w-10 h-10 text-white/40 mx-auto mb-2" />
+              <p className="text-white/80 font-semibold">Queue is currently empty</p>
+              <p className="text-white/60 text-xs mt-1">Search for a track above and add it to start voting!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {queueSongs.map((song, idx) => {
+                const isVotedByMe = deviceId && song.votedBy?.includes(deviceId);
+                const rankBadges = ['👑 #1', '🥈 #2', '🥉 #3'];
+                const rankText = idx < 3 ? rankBadges[idx] : `#${idx + 1}`;
+                const rankColor =
+                  idx === 0
+                    ? 'text-amber-300'
+                    : idx === 1
+                    ? 'text-slate-200'
+                    : idx === 2
+                    ? 'text-amber-500'
+                    : 'text-white/60';
+
+                return (
+                  <div
+                    key={song.id}
+                    className="bg-white/15 hover:bg-white/20 border border-white/15 rounded-2xl p-3.5 sm:p-4 transition-all shadow-sm"
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      {/* Left: Info */}
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1 w-full sm:w-auto">
+                        <span className={`font-extrabold text-sm sm:text-base w-12 flex-shrink-0 ${rankColor}`}>
+                          {rankText}
+                        </span>
+                        <img
+                          src={song.thumbnail}
+                          alt={song.title}
+                          className="w-12 h-12 sm:w-14 sm:h-14 object-cover rounded-xl shadow flex-shrink-0 bg-black/20"
+                          onError={(e) => {
+                            e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=200&fit=crop';
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm sm:text-base truncate leading-snug">{song.title}</p>
+                          <div className="flex items-center gap-2 text-white/70 text-xs mt-0.5">
+                            <span className="truncate">{song.artist}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 flex-shrink-0">
+                              <Clock className="w-3.5 h-3.5" />
+                              {song.durationText || formatDuration(song.duration)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Right side: Buttons */}
-                    <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-shrink-0">
-                      <button
-                        onClick={() => voteSong(song.id)}
-                        className="flex items-center justify-center gap-1 px-3 py-2 text-xs sm:text-sm sm:px-5 sm:py-3 bg-white/30 hover:bg-white/40 text-white rounded-xl font-bold transition-all flex-1 sm:flex-none sm:min-w-[80px]"
-                      >
-                        <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                        {song.votes}
-                      </button>
-                      {mode === 'admin' && (
+                      {/* Right: Actions */}
+                      <div className="flex items-center gap-2 self-end sm:self-center">
                         <button
-                          onClick={() => removeSong(song.id)}
-                          className="p-2 sm:p-3 bg-red-500/50 hover:bg-red-500/70 text-white rounded-xl transition-all flex-shrink-0"
-                          title="Remove song"
+                          onClick={() => voteSong(song.id)}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all active:scale-95 shadow-md border cursor-pointer ${
+                            isVotedByMe
+                              ? 'bg-pink-500/80 border-pink-300 text-white'
+                              : 'bg-white/20 hover:bg-white/30 border-white/20 text-white'
+                          }`}
+                          title={isVotedByMe ? 'You voted for this track' : 'Vote for this track'}
                         >
-                          <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                          <ThumbsUp className={`w-4 h-4 ${isVotedByMe ? 'fill-current' : ''}`} />
+                          <span>{song.votes || 0}</span>
                         </button>
-                      )}
+
+                        {mode === 'admin' && (
+                          <button
+                            onClick={() => removeSong(song.id)}
+                            className="p-2.5 bg-rose-500/40 hover:bg-rose-500/60 active:scale-95 text-white rounded-xl transition-all border border-rose-400/30 cursor-pointer"
+                            title="Remove track"
+                            aria-label="Remove track"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-
-
-            )}
-          </div>
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

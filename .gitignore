@@ -76,7 +76,3 @@ playwright/.cache/
 
 # Optional: if you're using Vitest + snapshots
 **/__snapshots__/
-
-
-#Firebase
-src/firebase.js
