@@ -1,4 +1,4 @@
-name: Code Reviewer
+name: Sift PR Review
 
 on:
   pull_request:
@@ -10,18 +10,70 @@ permissions:
   statuses: write
 
 jobs:
-  review:
+  sift-review:
     runs-on: ubuntu-latest
     steps:
-      - name: Run Sift Review
-        uses: sahilsaleem2907/sift/.github/workflows/sift-review.yml@master
+      - name: Checkout Sift Engine
+        uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository }}
-          pr_number: ${{ github.event.pull_request.number }}
-          before_sha: ${{ github.event.before }}
-        secrets:
-          SIFT_IMAGE: "ghcr.io/sahilsaleem2907/sift:latest"
-          SIFT_DATABASE_URL: ${{ secrets.SIFT_DATABASE_URL }}
-          SIFT_LLM_MODEL: "openai/gpt-4o" # or "gemini/gemini-2.0-flash"
-          SIFT_LLM_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SIFT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          repository: sahilsaleem2907/sift
+          ref: master
+          path: sift-src
+
+      - name: Build Sift Container
+        run: |
+          cd sift-src
+          docker build --target slim -t sift:local .
+
+      - name: Run Sift Service
+        env:
+          DATABASE_URL: ${{ secrets.SIFT_DATABASE_URL }}
+          LLM_MODEL: "gemini/gemini-2.0-flash" # Change to "openai/gpt-4o" if using OpenAI
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          docker run -d --name sift-service -p 8000:8000 \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e LLM_MODEL="$LLM_MODEL" \
+            -e GEMINI_API_KEY="$GEMINI_API_KEY" \
+            -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+            -e SIFT_GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            sift:local
+
+      - name: Wait for Sift Health Check
+        run: |
+          echo "Waiting for Sift service to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health | grep -q "ok"; then
+              echo "✅ Sift is healthy and running!"
+              exit 0
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+          echo "❌ Sift service failed to start. Container logs:"
+          docker logs sift-service
+          exit 1
+
+      - name: Trigger PR Review
+        run: |
+          echo "Triggering review for PR #${{ github.event.pull_request.number }}..."
+          RESPONSE=$(curl -s -X POST http://localhost:8000/review \
+            -H "Content-Type: application/json" \
+            -d '{
+              "owner": "${{ github.repository_owner }}",
+              "repo": "${{ github.event.repository.name }}",
+              "pr_number": ${{ github.event.pull_request.number }},
+              "before_sha": "${{ github.event.before }}",
+              "github_token": "${{ secrets.GITHUB_TOKEN }}"
+            }')
+          echo "Server Response: $RESPONSE"
+          
+          # Allow background review to complete before container teardown
+          sleep 45
+          docker logs sift-service
+
+      - name: Show Logs on Failure
+        if: failure()
+        run: |
+          docker logs sift-service
