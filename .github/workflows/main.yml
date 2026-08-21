@@ -20,9 +20,6 @@ jobs:
           ref: master
           path: sift-src
 
-      - name: Remove any .env file from build context
-        run: rm -f sift-src/.env
-
       - name: Build Sift Container
         run: |
           cd sift-src
@@ -32,29 +29,34 @@ jobs:
         run: |
           docker run -d --name sift-service -p 8000:8000 \
             -e DATABASE_URL="${{ secrets.SIFT_DATABASE_URL }}" \
-            -e LLM_MODEL="openai/gpt-5.6-luna" \
-            -e LLM_API_KEY="${{ secrets.SIFT_LLM_API_KEY }}" \
+            -e LLM_MODEL="openai/gpt-4o-mini" \
+            -e SIFT_LLM_MODEL="openai/gpt-4o-mini" \
             -e OPENAI_API_KEY="${{ secrets.SIFT_LLM_API_KEY }}" \
+            -e LLM_API_KEY="${{ secrets.SIFT_LLM_API_KEY }}" \
+            -e SIFT_LLM_API_KEY="${{ secrets.SIFT_LLM_API_KEY }}" \
             -e SIFT_GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             sift:local
 
       - name: Wait for Sift Health Check
         run: |
+          echo "Waiting for Sift service to start..."
           for i in {1..30}; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || true)
             if [ "$STATUS" = "200" ]; then
-              echo "✅ Sift is healthy!"
+              echo "✅ Sift is healthy and running!"
               exit 0
             fi
-            echo "Waiting... ($i/30)"
+            echo "Waiting... (Status: $STATUS, Try: $i/30)"
             sleep 2
           done
+          echo "❌ Sift service failed to start. Container logs:"
           docker logs sift-service
           exit 1
 
       - name: Trigger PR Review
         run: |
-          curl -s -X POST http://localhost:8000/review \
+          echo "Triggering review for PR #${{ github.event.pull_request.number }}..."
+          RESPONSE=$(curl -s -X POST http://localhost:8000/review \
             -H "Content-Type: application/json" \
             -d '{
               "owner": "${{ github.repository_owner }}",
@@ -62,7 +64,9 @@ jobs:
               "pr_number": ${{ github.event.pull_request.number }},
               "before_sha": "${{ github.event.before }}",
               "github_token": "${{ secrets.GITHUB_TOKEN }}"
-            }'
+            }')
+          echo "Server Response: $RESPONSE"
+          
           sleep 45
           docker logs sift-service
 
