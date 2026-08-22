@@ -23,17 +23,19 @@ jobs:
       - name: Build Sift Container
         run: |
           cd sift-src
-          docker build --no-cache --target slim -t sift:local .
+          docker build --target slim -t sift:local .
 
       - name: Run Sift Service
+        env:
+          DATABASE_URL: ${{ secrets.SIFT_DATABASE_URL }}
+          LLM_MODEL: "openai/gpt-5.6-luna"
+          LLM_API_KEY: ${{ secrets.SIFT_LLM_API_KEY }}  # ✅ FIXED: Sift reads LLM_API_KEY
         run: |
           docker run -d --name sift-service -p 8000:8000 \
-            -e DATABASE_URL="${{ secrets.SIFT_DATABASE_URL }}" \
-            -e LLM_MODEL="openai/gpt-4o-mini" \
-            -e SIFT_LLM_MODEL="openai/gpt-4o-mini" \
-            -e OPENAI_API_KEY="${{ secrets.SIFT_LLM_API_KEY }}" \
-            -e LLM_API_KEY="${{ secrets.SIFT_LLM_API_KEY }}" \
-            -e SIFT_LLM_API_KEY="${{ secrets.SIFT_LLM_API_KEY }}" \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e LLM_MODEL="$LLM_MODEL" \
+            -e LLM_API_KEY="$LLM_API_KEY" \
+            -e OPENAI_API_KEY="$LLM_API_KEY" \
             -e SIFT_GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             sift:local
 
@@ -55,7 +57,6 @@ jobs:
 
       - name: Trigger PR Review
         run: |
-          echo "Triggering review for PR #${{ github.event.pull_request.number }}..."
           RESPONSE=$(curl -s -X POST http://localhost:8000/review \
             -H "Content-Type: application/json" \
             -d '{
@@ -66,7 +67,6 @@ jobs:
               "github_token": "${{ secrets.GITHUB_TOKEN }}"
             }')
           echo "Server Response: $RESPONSE"
-          
           sleep 45
           docker logs sift-service
 
